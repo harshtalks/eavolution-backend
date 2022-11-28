@@ -11,7 +11,9 @@ import "hardhat-network-metadata";
 // Hardhat Config Object
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.17",
+  solidity: {
+    compilers: [{ version: "0.8.17" }],
+  },
   // abiExporter: {
   //   path: "../",
   //   runOnCompile: false,
@@ -19,6 +21,13 @@ const config: HardhatUserConfig = {
   // },
   addressExporter: {
     runPrettier: true,
+  },
+  namedAccounts: {
+    default: {
+      deployer: 0,
+      buyerOne: 1,
+      buyerTwo: 2,
+    },
   },
 };
 
