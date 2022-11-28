@@ -1,13 +1,51 @@
+import { ethers } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { NetworkMetadata } from "../custom-types/UserConfig";
 
-const deploy = async (hre: HardhatRuntimeEnvironment) => {
-  const { deployments, getNamedAccounts, network } = hre;
+const deploy = async (hardhatRuntimeEnvironment: HardhatRuntimeEnvironment) => {
+  const { deployments, getNamedAccounts, network } = hardhatRuntimeEnvironment;
 
   const { log, deploy } = deployments;
 
-  log("deployment for the eavolution smart contract....");
-
   const { deployer } = await getNamedAccounts();
+
+  log("\n**************************************");
+  log("deploying Eavolution Smart Contract...");
+
+  const { chainId } = network.config;
+
+  let addressForMockV3: string;
+
+  if (chainId === 31337) {
+    log("we are in the local hardhat network as of now");
+    const mockV3Aggregator = await ethers.getContract(
+      "MockV3Aggregator",
+      deployer
+    );
+
+    addressForMockV3 = mockV3Aggregator.address;
+  } else {
+    const { priceFeedAddress } = network.config.metadata as NetworkMetadata;
+    addressForMockV3 = priceFeedAddress;
+  }
+
+  const { blockConfirmations } = network.config.metadata as NetworkMetadata;
+
+  log(`address for AggregatorV3 is: ${addressForMockV3}`);
+
+  log("deploying the contract.....");
+
+  const transaction = await deploy("Eavolution", {
+    from: deployer,
+    args: [addressForMockV3],
+    log: true,
+    waitConfirmations: blockConfirmations,
+  });
+
+  log("deployed at the address: ");
+  log(transaction.address);
 };
+
+deploy.tags = ["all", "eav"];
 
 export default deploy;

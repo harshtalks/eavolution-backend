@@ -13,10 +13,20 @@ contract Eavolution is ERC721URIStorage {
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableMap for EnumerableMap.UintToAddressMap;
 
+    // custom error
+    error NotOnSale();
+    error InsufficientMoney(uint256 sent, uint256 required);
+    error ShowFull(uint256 sold, uint256 seats);
+
     // events
 
     event TicketSold(address indexed buyer, string message);
     event CheckedIn(address indexed buyer, string message);
+    event NewEventOnSale(
+        address indexed organizer,
+        uint256 indexed eventId,
+        string message
+    );
 
     // status variable
 
@@ -93,37 +103,50 @@ contract Eavolution is ERC721URIStorage {
         uint256 ticketPrice,
         string memory ipfs,
         uint256 ticketCount
-    ) public {
-        uint256 getCurrentTicketCount = _eventId.current();
-        Event storage temp = _events[getCurrentTicketCount];
+    ) public returns (uint256) {
+        uint256 getCurrentEventCount = _eventId.current();
+        Event storage temp = _events[getCurrentEventCount];
         _eventId.increment();
         // setting values
 
-        temp.eventId = getCurrentTicketCount;
+        temp.eventId = getCurrentEventCount;
         temp.ipfsUri = ipfs;
         temp.organizer = msg.sender;
         temp.totalTickets = ticketCount;
         temp.ticketPrice = ticketPrice;
         temp.onSale = true;
-        _allEvents.add(getCurrentTicketCount);
+        _allEvents.add(getCurrentEventCount);
+
+        emit NewEventOnSale(
+            msg.sender,
+            getCurrentEventCount,
+            "A new event is added on the platform."
+        );
+        return getCurrentEventCount;
     }
 
     // function to sell ticket, buyer will call this.
 
     function buyTicket(uint256 eventId, string memory setURI) public payable {
         if (_events[eventId].onSale != true) {
-            revert("no longer on sale");
+            revert NotOnSale();
         }
 
         if (msg.value < _events[eventId].ticketPrice) {
-            revert("not enough money");
+            revert InsufficientMoney({
+                sent: msg.value,
+                required: _events[eventId].ticketPrice
+            });
         }
 
         if (
-            _events[eventId].currentCount.current() <=
+            _events[eventId].currentCount.current() ==
             _events[eventId].totalTickets
         ) {
-            revert("no tickets available, show is full");
+            revert ShowFull({
+                sold: _events[eventId].currentCount.current(),
+                seats: _events[eventId].totalTickets
+            });
         }
 
         // sending money to our organizer.
@@ -288,14 +311,6 @@ contract Eavolution is ERC721URIStorage {
         return _events[eventId];
     }
 
-    function getAvailableSeatsInAnEvent(
-        uint256 eventId
-    ) public view returns (uint256) {
-        uint256 currentTicketSale = _events[eventId].currentCount.current();
-        uint256 totalTickets = _events[eventId].totalTickets;
-        return totalTickets - currentTicketSale;
-    }
-
     function getAvailableTickets(
         uint256 eventId
     ) public view returns (uint256) {
@@ -306,6 +321,30 @@ contract Eavolution is ERC721URIStorage {
 
     function areEvenTicketsOnSale(uint256 eventId) public view returns (bool) {
         return _events[eventId].onSale;
+    }
+
+    function returnEventId(uint256 arrayIndex) public view returns (uint256) {
+        require(arrayIndex < _allEvents.length(), "array out of bound.");
+
+        return _allEvents.at(arrayIndex);
+    }
+
+    function getTotalTicketsSold(
+        uint256 eventId
+    ) public view returns (uint256) {
+        return _events[eventId].currentCount.current();
+    }
+
+    function getTotalTickets(uint256 eventId) public view returns (uint256) {
+        return _events[eventId].totalTickets;
+    }
+
+    function getTicketPrice(uint256 eventId) public view returns (uint256) {
+        return _events[eventId].ticketPrice;
+    }
+
+    function getEventOrganizer(uint256 eventId) public view returns (address) {
+        return _events[eventId].organizer;
     }
 
     // Price Feed from the Chainlink on-chain
