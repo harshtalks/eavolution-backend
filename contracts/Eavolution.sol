@@ -85,6 +85,10 @@ contract Eavolution is ERC721URIStorage {
 
     // methods
 
+    /**
+     * @dev Main methods for the eavolution platform.
+     */
+
     function uploadTicket(
         uint256 ticketPrice,
         string memory ipfs,

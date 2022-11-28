@@ -79,3 +79,10 @@ export interface TicketMetaData {
     };
   };
 }
+
+export interface NetworkMetadata {
+  priceFeedAddress: string;
+  blockConfirmations: number | 1;
+  initialPrice?: number;
+  decimals?: number;
+}
