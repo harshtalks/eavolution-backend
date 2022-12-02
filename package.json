@@ -37,5 +37,9 @@
   },
   "dependencies": {
     "dotenv": "^16.0.3"
+  },
+  "scripts": {
+    "compile": "yarn hardhat compile",
+    "deploy": "yarn hardhat deploy $npm_config_network"
   }
 }

@@ -17,6 +17,8 @@ contract Eavolution is ERC721URIStorage {
     error NotOnSale();
     error InsufficientMoney(uint256 sent, uint256 required);
     error ShowFull(uint256 sold, uint256 seats);
+    error NotOnResale();
+    error YouAreNotAnOwner(address yourAddress, address owner);
 
     // events
 
@@ -54,6 +56,7 @@ contract Eavolution is ERC721URIStorage {
         uint256 eventId;
         address owner;
         Status ticketStatus;
+        bool putOnResale;
     }
 
     // counters for TokenIds (ticketId), and unique eventIds
@@ -167,6 +170,13 @@ contract Eavolution is ERC721URIStorage {
         _safeMint(msg.sender, currentTokenCount);
         _setTokenURI(currentTokenCount, setURI);
 
+        _ticketDetails[currentTokenCount] = TicketDetails({
+            eventId: eventId,
+            owner: msg.sender,
+            ticketStatus: Status.NOT_CHECKED_IN,
+            putOnResale: false
+        });
+
         // incrementing tokenId and the currentCount for total ticket sold in the event.
         _tokenIds.increment();
         _events[eventId].currentCount.increment();
@@ -181,22 +191,32 @@ contract Eavolution is ERC721URIStorage {
 
         // ticket details
 
-        TicketDetails memory temp = _ticketDetails[currentTokenCount];
-
-        temp.eventId = eventId;
-        temp.owner = ownerOf(currentTokenCount);
-        temp.ticketStatus = Status.NOT_CHECKED_IN;
-
         // Ticket selling event
 
-        emit TicketSold(msg.sender, "Congratulations, ticket has been sold.");
+        emit TicketSold(msg.sender, "Congratulations, ticket has been bought.");
     }
 
-    function resaleTicket(address to, uint256 tokenId) public payable {
+    function putOnResale(uint256 ticketId) public {
+        address owner = _ownerOf(ticketId);
+
+        if (owner != msg.sender) {
+            revert("you are not an owner!");
+        }
+
+        _ticketDetails[ticketId].putOnResale = true;
+    }
+
+    function resaleTicket(uint256 tokenId) public payable {
         TicketDetails memory ticketDetails = _ticketDetails[tokenId];
         uint256 ticketPrice = _events[ticketDetails.eventId].ticketPrice;
 
-        require(ticketPrice == msg.value, "not enough money");
+        if (ticketDetails.putOnResale != true) {
+            revert NotOnResale();
+        }
+
+        if (ticketPrice != msg.value) {
+            revert InsufficientMoney({sent: msg.value, required: ticketPrice});
+        }
 
         (bool success, ) = ticketDetails.owner.call{value: msg.value}("");
 
@@ -205,31 +225,33 @@ contract Eavolution is ERC721URIStorage {
             "Address: unable to send value, recipient may have reverted"
         );
 
-        ticketDetails.owner = to;
+        _ticketDetails[tokenId].owner = msg.sender;
 
-        safeTransferFrom(msg.sender, to, tokenId);
+        address oldOwner = _ownerOf(tokenId);
 
-        _ticketHolders[to].push(tokenId);
+        _safeTransfer(oldOwner, msg.sender, tokenId, "");
+
+        _ticketHolders[msg.sender].push(tokenId);
 
         // managing arrays for the addresses and tokens.abi
 
         uint256 indexUint = findIndexForUint(
-            _ticketHolders[msg.sender],
+            _ticketHolders[oldOwner],
             tokenId
-        );
+        ) - 1;
 
         uint256 indexAddress = findIndexForAdd(
             _registeredForEvent[ticketDetails.eventId],
-            msg.sender
-        );
+            oldOwner
+        ) - 1;
 
         // now removing the tokenId in the array of tokenIds for the address (buyer).
 
-        _ticketHolders[msg.sender][indexUint] = _ticketHolders[msg.sender][
-            _ticketHolders[msg.sender].length - 1
+        _ticketHolders[oldOwner][indexUint] = _ticketHolders[oldOwner][
+            _ticketHolders[oldOwner].length - 1
         ];
 
-        _ticketHolders[msg.sender].pop();
+        _ticketHolders[oldOwner].pop();
 
         // similarly for _registeredForEvent mapping, we will remove the address that is selling the ticket.
 
@@ -243,10 +265,10 @@ contract Eavolution is ERC721URIStorage {
 
         // adding new address to the _registeredForEvent mapping.
 
-        _registeredForEvent[ticketDetails.eventId].push(to);
+        _registeredForEvent[ticketDetails.eventId].push(msg.sender);
     }
 
-    function changeEvenSellingStatus(uint256 eventId) public {
+    function changeEventSellingStatus(uint256 eventId) public {
         if (_events[eventId].organizer != msg.sender) {
             revert();
         }
@@ -255,7 +277,9 @@ contract Eavolution is ERC721URIStorage {
     }
 
     function checkIn(uint256 tokenId) public {
-        require(ownerOf(tokenId) == msg.sender, "not the owner of the ticket");
+        if (_ownerOf(tokenId) != msg.sender) {
+            revert YouAreNotAnOwner(msg.sender, _ownerOf(tokenId));
+        }
 
         TicketDetails storage ticketDetails = _ticketDetails[tokenId];
 
@@ -274,11 +298,20 @@ contract Eavolution is ERC721URIStorage {
         uint256[] memory values,
         uint value
     ) public pure returns (uint) {
+        uint len = values.length;
         uint i = 0;
-        while (values[i] != value) {
-            i++;
+
+        // traverse in the array
+        while (i < len) {
+            // if the i-th element is t
+            // then return the index
+            if (values[i] == value) {
+                return i + 1;
+            } else {
+                i = i + 1;
+            }
         }
-        return i;
+        return 0;
     }
 
     // helper function for array of addresses.
@@ -287,11 +320,20 @@ contract Eavolution is ERC721URIStorage {
         address[] memory values,
         address value
     ) public pure returns (uint) {
+        uint len = values.length;
         uint i = 0;
-        while (values[i] != value) {
-            i++;
+
+        // traverse in the array
+        while (i < len) {
+            // if the i-th element is t
+            // then return the index
+            if (values[i] == value) {
+                return i + 1;
+            } else {
+                i = i + 1;
+            }
         }
-        return i;
+        return 0;
     }
 
     // Getter view functions
@@ -347,6 +389,24 @@ contract Eavolution is ERC721URIStorage {
         return _events[eventId].organizer;
     }
 
+    function getBuyerTicketsIds(
+        address buyer
+    ) public view returns (uint256[] memory) {
+        return _ticketHolders[buyer];
+    }
+
+    function getTicketDetails(
+        uint256 tokenId
+    ) public view returns (TicketDetails memory) {
+        return _ticketDetails[tokenId];
+    }
+
+    function getRegisteredNames(
+        uint256 eventId
+    ) public view returns (address[] memory) {
+        return _registeredForEvent[eventId];
+    }
+
     // Price Feed from the Chainlink on-chain
     /**
      * we will use chainlink vrf for conversion of Ether price
@@ -372,7 +432,7 @@ contract Eavolution is ERC721URIStorage {
     // transeferring ticket to your partner.
 
     // function transferTicket(uint256 tokenId, address to) public {
-    //     require(ownerOf(tokenId) == msg.sender, "not the owner of the ticket");
+    //     require(_ownerOf(tokenId) == msg.sender, "not the owner of the ticket");
 
     //     TicketDetails memory ticketDetails = _ticketDetails[tokenId];
 
@@ -382,4 +442,42 @@ contract Eavolution is ERC721URIStorage {
 
     //     _ticketHolders[to].push(tokenId);
     // }
+
+    // overriding
+
+    function approve(address to, uint256 tokenId) public virtual override {
+        revert("access forbidden");
+    }
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public virtual override {
+        revert("access forbidden");
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public virtual override {
+        revert("access forbidden.");
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public virtual override {
+        revert("access forbidden.");
+    }
+
+    function setApprovalForAll(
+        address operator,
+        bool approved
+    ) public virtual override {
+        revert("access forbidden");
+    }
 }

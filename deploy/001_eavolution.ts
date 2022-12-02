@@ -1,6 +1,8 @@
 import { ethers } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { NetworkMetadata } from "../custom-types/UserConfig";
+import { developerChains } from "../utils/helper";
+import { verify } from "../utils/verify";
 
 const deploy = async (hardhatRuntimeEnvironment: HardhatRuntimeEnvironment) => {
   const { deployments, getNamedAccounts, network } = hardhatRuntimeEnvironment;
@@ -44,6 +46,10 @@ const deploy = async (hardhatRuntimeEnvironment: HardhatRuntimeEnvironment) => {
 
   log("deployed at the address: ");
   log(transaction.address);
+
+  if (!developerChains.includes(network.name) && process.env.ETHERSCAN_API) {
+    await verify(transaction.address, [addressForMockV3]);
+  }
 };
 
 deploy.tags = ["all", "eav"];
