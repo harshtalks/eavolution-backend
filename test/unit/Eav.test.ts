@@ -60,6 +60,10 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
           const getEventId = await eavolution.returnEventId(0);
 
+          const priceInDollars = await eavolution.getLatestPrice();
+
+          console.log(ethers.utils.formatEther(priceInDollars));
+
           expect(eventId.value.toString()).equals(getEventId.toString());
         });
 
@@ -399,6 +403,13 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
               1
             )
           ).to.be.reverted;
+        });
+      });
+
+      describe("priceFeed", () => {
+        it("Fun", async () => {
+          const ticketPrice = ethers.utils.parseEther("10");
+          const getPrice = ethers.utils.formatEther(ticketPrice);
         });
       });
     });

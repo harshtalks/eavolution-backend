@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// imports
+
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -13,7 +15,8 @@ contract Eavolution is ERC721URIStorage {
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableMap for EnumerableMap.UintToAddressMap;
 
-    // custom error
+    // custom errors
+
     error NotOnSale();
     error InsufficientMoney(uint256 sent, uint256 required);
     error ShowFull(uint256 sold, uint256 seats);
@@ -303,7 +306,7 @@ contract Eavolution is ERC721URIStorage {
 
         // traverse in the array
         while (i < len) {
-            // if the i-th element is t
+            // if the i-th element is value
             // then return the index
             if (values[i] == value) {
                 return i + 1;
@@ -338,6 +341,11 @@ contract Eavolution is ERC721URIStorage {
 
     // Getter view functions
 
+    /**
+     * Getter functions
+     * pure view functions
+     */
+
     function getTicketStatus(uint256 ticketId) public view returns (uint256) {
         return
             _ticketDetails[ticketId].ticketStatus == Status.CHECKED_IN ? 1 : 0;
@@ -369,6 +377,12 @@ contract Eavolution is ERC721URIStorage {
         require(arrayIndex < _allEvents.length(), "array out of bound.");
 
         return _allEvents.at(arrayIndex);
+    }
+
+    function getEventMetadata(
+        uint256 eventId
+    ) public view returns (string memory) {
+        return _events[eventId].ipfsUri;
     }
 
     function getTotalTicketsSold(
@@ -426,24 +440,22 @@ contract Eavolution is ERC721URIStorage {
             ,
 
         ) = _priceFeed.latestRoundData();
-        return price;
+        int units = 10000000000;
+        return price * units;
     }
 
-    // transeferring ticket to your partner.
+    function getDecimals() public view returns (uint) {
+        return _priceFeed.decimals();
+    }
 
-    // function transferTicket(uint256 tokenId, address to) public {
-    //     require(_ownerOf(tokenId) == msg.sender, "not the owner of the ticket");
-
-    //     TicketDetails memory ticketDetails = _ticketDetails[tokenId];
-
-    //     _approve(to, tokenId);
-
-    //     ticketDetails.owner = to;
-
-    //     _ticketHolders[to].push(tokenId);
-    // }
-
-    // overriding
+    function getDollarPriceForTicket(
+        uint256 eventId
+    ) public view returns (uint256) {
+        uint256 price = uint256(getLatestPrice());
+        uint256 ticketPrice = _events[eventId].ticketPrice;
+        uint256 decimal = 1000000000000000000000000000000000000;
+        return (price * ticketPrice) / decimal;
+    }
 
     function approve(address to, uint256 tokenId) public virtual override {
         revert("access forbidden");
